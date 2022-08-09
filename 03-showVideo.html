@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+    <title>Cesium Hello</title>
+    <script src="common/cesium/1.64/Cesium.js"></script>
+    <script src="common/jquery/jquery-3.4.1.min.js"></script>
+    <style>
+        @import url(common/cesium/1.64/Widgets/widgets.css);
+        #cesiumContainer{
+            width: 800px;
+            height: 600px;
+            background-color: aqua;
+        }
+        #tools{
+            position: absolute;
+            right: 10px;
+            top:10px;
+            background-color: #aaaaaa;
+            width: 500px;
+            height: 600px;
+        }
+        #trailer {
+            position: absolute;
+            bottom: 10px;
+            right: 5px;
+            width: 384px;
+            height: 216px;
+        }
+    </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+<div id="tools">
+    <input type="button"  value="添加3dtiles" onclick="add3dtileset()" />
+    <input type="button"  value="添加摄像头-球" onclick="addVideo_s()" />
+    <input type="button"  value="添加摄像头-立方体" onclick="addVideo_b()" />
+    <video id="trailer" muted autoplay loop crossorigin controls>
+        <source src="data/video/847-2-2.mp4" type="video/mp4">
+        Your browser does not support the <code>video</code> element.
+    </video>
+</div>
+<script>
+    var viewer,scene;
+    var previousPickedEntity = {
+        feature: undefined,
+        originalColor: undefined
+    };
+    var addSphereCamera=false,addBoxCamera=false;
+    var initCesium=function(eleid) {
+        viewer = new Cesium.Viewer(eleid, {
+            animation: false,
+            baseLayerPicker: false,
+            sceneModePicker: false,
+            selectionIndicator: false,
+            timeline: false,
+            navigationHelpButton: false,
+            fullscreenButton: false,
+            geocoder: false,
+            //globe:false, //可以是flase ,但不能是true
+            homeButton: false,
+
+            /*imageryProvider : new Cesium.esriImageryProvider({
+             url : "http://192.168.1.9:8091/iserver/services/map-vec_ZJHK/rest/maps/vec"//可以，高等级没有
+             })*/
+            //单张图片，可以
+           /* imageryProvider: Cesium.createTileMapServiceImageryProvider({
+                url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+            })
+*/
+            imageryProvider:new Cesium.UrlTemplateImageryProvider({
+                url:"http://mt1.google.cn/vt/lyrs=s&hl=zh-CN&x={x}&y={y}&z={z}&s=Gali"
+            })
+
+            /*terrainProvider : new Cesium.CesiumTerrainProvider({
+             url : "//assets.agi.com/stk-terrain/world",
+             requestWaterMask : true,
+             requestVertexNormals : true,
+             isSct : true
+             })*/
+        });
+        viewer._cesiumWidget._creditContainer.style.display = "none";
+         scene = viewer.scene;
+
+        var handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        handler.setInputAction(function(click){
+            console.log('左键单击事件：',click.position);
+
+            var pick1= viewer.scene.globe.pick(viewer.camera.getPickRay(click.position), viewer.scene);
+            if(addSphereCamera){
+                addCamera_sphere(pick1);
+                addSphereCamera=false;
+            }
+            if(addBoxCamera){
+                addCamera_box(pick1);
+                addBoxCamera=false;
+            }
+
+
+
+            var pickingEntity = scene.pick(click.position);
+            if (pickingEntity instanceof Cesium.Cesium3DTileFeature) {
+                //判断以前是否选择要素
+                if (pickingEntity != previousPickedEntity.feature) {
+                    if (previousPickedEntity.feature != undefined) {
+                        //还原前选择要素的本颜色
+                        previousPickedEntity.feature.color = previousPickedEntity.originalColor;
+                        //将当前选择要素及其颜色添加到previousPickedEntity
+                        previousPickedEntity.feature = pickingEntity;
+                        previousPickedEntity.originalColor = pickingEntity.color;
+                    }
+                    //将当前选择要素及其颜色添加到previousPickedEntity
+                    previousPickedEntity.feature = pickingEntity;
+                    previousPickedEntity.originalColor = pickingEntity.color;
+                }
+                //将模型变为黄色高亮
+                pickingEntity.color = Cesium.Color.YELLOW;
+            }
+
+        },Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    };
+    var add3dtileset=function () {
+        var tileset = scene.primitives.add(
+            new Cesium.Cesium3DTileset({
+                //url: Cesium.IonResource.fromAssetId(8564)
+                url:"http://localhost:9000/model/5a192b101af511ea9d70c9acecb293e8/tileset.json"
+            })
+        );
+        tileset.readyPromise.then(function(tileset) {
+            viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0.5, -0.2, tileset.boundingSphere.radius * 4.0));
+        }).otherwise(function(error) {
+            console.log(error);
+        })
+    }
+    var addVideo_s=function () {
+        addSphereCamera=true;
+    }
+    var addVideo_b=function () {
+        addBoxCamera=true;
+    }
+    var addCamera_sphere=function (pos) {
+        var sphere = viewer.entities.add({
+            position:pos,
+            //position : Cesium.Cartesian3.fromDegrees(116.391285, 39.906853, 10),
+            ellipsoid : {
+                radii : new Cesium.Cartesian3(1, 1, 1),
+                //material : videoElement
+                //material:Cesium.Color.RED
+                material:document.getElementById('trailer')
+            }
+        });
+        //viewer.trackedEntity = sphere;
+    }
+    var addCamera_box=function (pos) {
+        var Box = viewer.entities.add({
+            name : 'box',
+            //中心的位置（长、宽、高）
+            position:pos,
+            box : {
+                //长宽高
+                dimensions : new Cesium.Cartesian3(1.0, 1.0, 1.0),
+                material :document.getElementById('trailer'),
+                fill : true,  //不显示填充
+                outline : true, //显示轮廓
+                outlineColor : Cesium.Color.BLACK
+            }
+        });
+    }
+    $().ready(function () {
+        initCesium("cesiumContainer");
+    })
+</script>
+</body>
+</html>

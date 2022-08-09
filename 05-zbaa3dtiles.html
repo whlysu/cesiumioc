@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no">
+    <title>Cesium Hello</title>
+    <script src="common/cesium/1.64/Cesium.js"></script>
+    <script src="common/jquery/jquery-3.4.1.min.js"></script>
+
+    <script src="data/mode/T3CBridge.js"></script>
+    <script src="data/mode/T3CStructure.js"></script>
+    <script src="data/mode/T3DStructure.js"></script>
+    <script src="data/mode/T3EBridge.js"></script>
+    <script src="data/mode/T3EStructure.js"></script>
+    <style>
+        @import url(common/cesium/1.64/Widgets/widgets.css);
+        #cesiumContainer{
+            width: 800px;
+            height: 600px;
+            background-color: aqua;
+        }
+        #tools{
+            position: absolute;
+            right: 10px;
+            top:10px;
+            background-color: #aaaaaa;
+            width: 200px;
+            height: 600px;
+        }
+    </style>
+</head>
+<body>
+<div id="cesiumContainer"></div>
+<div id="tools">
+    <input type="button"  value="添加3dtiles" onclick="add3dtileset()" />
+    <input type="button"  value="T3C桥架" onclick="add2('T3C桥架')" />
+    <input type="button"  value="T3C建筑" onclick="add2('T3C建筑')" />
+    <input type="button"  value="T3D建筑" onclick="add2('T3D建筑')" />
+    <input type="button"  value="T3E桥架" onclick="add2('T3E桥架')" />
+    <input type="button"  value="T3E建筑" onclick="add2('T3E建筑')" />
+    <div id="layers"></div>
+</div>
+<script>
+    var viewer,scene;
+    var initCesium=function(eleid) {
+        viewer = new Cesium.Viewer(eleid, {
+            animation: false,
+            baseLayerPicker: false,
+            sceneModePicker: false,
+            selectionIndicator: false,
+            timeline: false,
+            navigationHelpButton: false,
+            fullscreenButton: false,
+            geocoder: false,
+            //globe:false, //可以是flase ,但不能是true
+            homeButton: false,
+
+            /*imageryProvider : new Cesium.esriImageryProvider({
+             url : "http://192.168.1.9:8091/iserver/services/map-vec_ZJHK/rest/maps/vec"//可以，高等级没有
+             })*/
+            //单张图片，可以
+            imageryProvider: Cesium.createTileMapServiceImageryProvider({
+                url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII')
+            })
+            /*terrainProvider : new Cesium.CesiumTerrainProvider({
+             url : "//assets.agi.com/stk-terrain/world",
+             requestWaterMask : true,
+             requestVertexNormals : true,
+             isSct : true
+             })*/
+        });
+        viewer._cesiumWidget._creditContainer.style.display = "none";
+         scene = viewer.scene;
+    };
+    var add3dtileset=function () {
+        var tileset = scene.primitives.add(
+            new Cesium.Cesium3DTileset({
+                //url: Cesium.IonResource.fromAssetId(8564)
+               // url:"http://localhost:9000/model/5a192b101af511ea9d70c9acecb293e8/tileset.json"
+                //url:"http://localhost:3333/model/8473dtiles/tileset.json"
+                url:"http://localhost:3333/model/ZBAA/T3C%E6%A1%A5%E6%9E%B6/T3CF1%E7%BB%BC%E5%90%88%E5%B8%83%E7%BA%BF%E6%A1%A5%E6%9E%B6_%E7%94%B5%E7%BC%86%E6%A1%A5%E6%9E%B6%E9%85%8D%E4%BB%B6/tileset.json"
+            })
+        );
+        tileset.readyPromise.then(function(tileset) {
+            viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0.5, -0.2, tileset.boundingSphere.radius * 4.0));
+        }).otherwise(function(error) {
+            console.log(error);
+        })
+    }
+    var add3dtilesets=function (i,len) {
+        var i=i==undefined?0:i;
+        var len =len ==undefined?T3CBridge.length:len;
+        var bd=null;
+        if(i==len) return;
+
+            var tileset = scene.primitives.add(
+                new Cesium.Cesium3DTileset({
+                    url:T3CBridge[i].url,
+                })
+            );
+            tileset.readyPromise.then(function (tileset) {
+                i++;
+                console.log(i);
+                bd=bd==null?new Cesium.BoundingSphere(tileset.boundingSphere.center, tileset.boundingSphere.radius):0;
+                if(i==len){
+                    viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0.5, -0.2, tileset.boundingSphere.radius * 4.0));
+                }
+                else {
+                    add3dtilesets(i, len);
+                }
+
+            }).otherwise(function (error) {
+                console.log(error);
+            })
+
+    }
+    var add2=function (name) {
+
+         for(var i=0;i<modes.length;i++){
+             if(modes[i].id==name){
+                 add3(modes[i],0);
+             }
+         }
+    }
+    var add3=function (ls,i) {
+        var i=i==undefined?0:i;
+        var len =ls.child.length;
+        var bd=null;
+        if(i==len) return;
+
+        var tileset = scene.primitives.add(
+            new Cesium.Cesium3DTileset({
+                url:ls.url+ls.child[i].id+"/tileset.json",
+            })
+        );
+        tileset.readyPromise.then(function (tileset) {
+            $("#layers").append("<a class='sublayer' d='"+i+"' onclick=showhide('"+ls.id+"',"+i+") >"+ls.child[i].id+"</a></br>");
+            ls.child[i].obj=tileset;
+            i++;
+            console.log(i);
+            bd=bd==null?new Cesium.BoundingSphere(tileset.boundingSphere.center, tileset.boundingSphere.radius):0;
+            if(i<len){
+               add3(ls, i);
+            }
+            else {
+                viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0.5, -0.2, tileset.boundingSphere.radius * 4.0));
+            }
+
+        }).otherwise(function (error) {
+            console.log(error);
+        })
+    }
+    var showhide=function (name,index) {
+
+        for(var i=0;i<modes.length;i++){
+            if(modes[i].id==name){
+                modes[i].child[index].obj.show=!modes[i].child[index].obj.show;
+                if(modes[i].child[index].obj.show){
+                    zoomToTileset(modes[i].child[index].obj);
+                }
+                break;
+            }
+        }
+    }
+
+    function zoomToTileset(tileset) {
+        boundingSphere = tileset.boundingSphere;
+        viewer.zoomTo(tileset, new Cesium.HeadingPitchRange(0.5, -2.0, tileset.boundingSphere.radius * 4.0));
+        //viewer.camera.viewBoundingSphere(boundingSphere, new Cesium.HeadingPitchRange(0.5, -2.0, tileset.boundingSphere.radius * 4.0));
+        //viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+
+    }
+
+    $().ready(function () {
+        initCesium("cesiumContainer");// onclick='showhide()'
+        $(".sublayer").on("click","a",function(){
+            showhide();
+        });
+    })
+</script>
+</body>
+</html>
